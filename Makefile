@@ -37,6 +37,13 @@ stamp/fetch-busybox dist/$(BUSYBOX_TARBALL) src/$(BUSYBOX_DIR): | dist src stamp
 	cd src && tar -xvf ../dist/$(BUSYBOX_TARBALL)
 	touch stamp/fetch-busybox		
 
+stamp/fetch-tiny-loader: | src stamp
+	cd src && git clone https://github.com/guineawheek/tiny-floppy-bootloader.git
+	cd src/tiny-floppy-bootloader && git -c advice.detachedHead=false checkout 6f7b7c64386c5203fd54804b87288503e11b8575
+	cd src/tiny-floppy-bootloader && for patch in ../../patches/tiny-floppy-loader/*.patch; do\
+		patch -p1 < $$patch; \
+	done
+	touch $@
 
 stamp/fetch-syslinux: | dist src stamp temp/syslinux
 	cd dist && wget $(UBUNTU_SYSLINUX_ORIG) -O syslinux_orig.tar.xz
@@ -107,6 +114,9 @@ build-initramfs: $(ROOT_DIR)/out/initramfs.cpio
 $(ROOT_DIR)/out/initramfs.cpio: | out/initramfs  out/initramfs/dev
 	cd out/initramfs && find . | cpio -o -H newc > $(ROOT_DIR)/out/initramfs.cpio # | xz --check=crc32 -1e
 
+out/initramfs/bin/flmount: src/flmount/mount.c
+	i486-linux-musl-gcc -static -o $@ $<
+
 build-floppy: out/bzImage $(ROOT_DIR)/out/initramfs.cpio build-syslinux | out
 	dd if=/dev/zero of=./floppy_linux.img bs=1k count=1440
 	mkdosfs floppy_linux.img
@@ -114,6 +124,9 @@ build-floppy: out/bzImage $(ROOT_DIR)/out/initramfs.cpio build-syslinux | out
 	mcopy -i floppy_linux.img config/syslinux.cfg ::
 	mcopy -i floppy_linux.img out/bzImage  ::
 	mcopy -i floppy_linux.img out/initramfs.cpio.xz  ::rootfs.ram
+
+build-tiny-floppy: stamp/fetch-tiny-loader | out
+	@cd src/tiny-floppy-bootloader && OUTPUT="../../out/tinydisk.img" KERN="../../out/bzImage" ./build.sh
 
 build-kernel-modules: stamp/fetch-kernel config/kernel.config
 	$(MAKE) -C src/$(LINUX_DIR) INSTALL_MOD_PATH=../../out/kmodules/ ARCH=x86 CROSS_COMPILE=i486-linux-musl- modules

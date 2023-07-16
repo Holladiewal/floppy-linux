@@ -1,0 +1,43 @@
+diff --git a/build.sh b/build.sh
+index 7bee929..887e0aa 100755
+--- a/build.sh
++++ b/build.sh
+@@ -16,8 +16,8 @@
+ #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ 
+ INPUT="bflop.asm"
+-OUTPUT="disk.img"
+-KERN="../bzImage"
++OUTPUT="${OUTPUT:-'disk.img'}"
++KERN="${KERN:-'../bzImage'}"
+ #RD="./big.init"
+ 
+ #size of kern + ramdisk
+@@ -28,7 +28,7 @@ K_SZ=`stat -c %s $KERN`
+ K_PAD=$((512 - $K_SZ % 512))
+ #R_PAD=$((512 - $R_SZ % 512))
+ 
+-nasm -o $OUTPUT -D initRdSizeDef=$R_SZ $INPUT
++nasm -o $OUTPUT -D initRdSize=$R_SZ $INPUT
+ cp $OUTPUT bootloader.bin
+ 
+ cat $KERN >> $OUTPUT
+@@ -42,14 +42,16 @@ fi
+ #fi
+ 
+ # make an objdump of the bootloader for debugging purposes
+-objdump -b binary --adjust-vma=0x7c00 -D bootloader.bin -m i8086 -M intel > objdump_out.objdump
++#objdump -b binary --adjust-vma=0x7c00 -D bootloader.bin -m i8086 -M intel > objdump_out.objdump
+ 
+ TOTAL=`stat -c %s $OUTPUT`
+ if [[ $TOTAL -gt 1474560 ]]; then
+     echo "Warning: Floppy image exceeds 1.44mb!!!"
++    exit 1
+ else
+     dd if=/dev/zero bs=1 count=$((1474560 - $TOTAL)) >> $OUTPUT
+ fi
+-echo "concatenated bootloader, kernel and initrd into ::> $OUTPUT"
++exit 0
++#echo "concatenated bootloader, kernel and initrd into ::> $OUTPUT"
+ #echo "Note, your first partition must start after sector $(($TOTAL / 512))"
+ 

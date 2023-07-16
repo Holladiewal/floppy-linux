@@ -1,0 +1,74 @@
+diff --git a/bflop.asm b/bflop.asm
+index 1067f98..6e872cd 100644
+--- a/bflop.asm
++++ b/bflop.asm
+@@ -32,10 +32,14 @@ org	0x7c00
+ 	mov	sp, 0x7c00			; setup stack 
+ 
+     ; now get into protected move (32bit) as kernel is large and has to be loaded high
+-    mov ax, 0x2401 ; A20 line enable via BIOS
+-    int 0x15
+-    jc err
+-
++    ; for compatibility, we use the 8042 keyboard controller to set the A20 Gate
++    call empty_8042
++    mov al, 0xd1
++    out 0x64, al
++    call empty_8042
++    mov al, 0xdf
++    out 0x60, al
++    call empty_8042
+ 
+     lgdt [gdt_desc] ; load global descriptor table
+     mov eax, cr0
+@@ -157,8 +161,10 @@ loader:
+     call flopread
+     call highmove
+ 
++%ifdef DEBUG
+     mov si, pstr
+     call print
++%endif
+     pop edx
+     sub edx, 127*512
+ 
+@@ -204,21 +210,21 @@ err:
+ 
+ errK:
+ %ifdef DEBUG
+-    mov si, errStrK
++    mov si, errStr
+     call print
+ %endif
+     jmp $
+ 
+ err_read:
+ %ifdef DEBUG
+-    mov si, errStrRead
++    mov si, errStr
+     call print
+ %endif
+     jmp $
+ 
+-errStr db 'a20err!!',0
+-errStrRead db 'read err!!',0
+-errStrK db 'krnlerr!!',0
++errStr db 'err!',0
++;errStrRead db 'err!',0
++;errStrK db 'err!',0
+ pstr db 'B',0
+ 
+ 
+@@ -236,6 +242,12 @@ print.end:
+     ret
+ %endif
+ 
++empty_8042:
++    in al, 0x64
++    test al, 2
++    jnz empty_8042
++    ret
++
+ flSect dw 1 ; start sector (this is zero-indexed)
+ flopread:
+     push eax
