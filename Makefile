@@ -43,10 +43,10 @@ stamp/fetch-syslinux: | dist src stamp temp/syslinux
 	cd dist && wget $(UBUNTU_SYSLINUX_PKG) -O syslinux_pkg.tar.xz
 	cd src && tar -xvf ../dist/syslinux_orig.tar.xz
 	cd src && mv syslinux-6.04~git20190206.bf6db5b4 syslinux
-	cd src/syslinux && tar -xvf ../../dist/syslinux_pkg.tar.xz
-	cd src/syslinux && QUILT_PATCHES=debian/patches quilt push -a
-	cd src/syslinux && patch -p1 < ../../patches/0030-fix-e88.patch
-	touch stamp/fetch-syslinux		
+	cd temp/syslinux && tar -xvf ../../dist/syslinux_pkg.tar.xz
+	cp temp/syslinux/debian/patches/*.patch patches/syslinux
+	rm -r temp/syslinux
+	touch $@
 
 kernelmenuconfig: | stamp/fetch-kernel
 	cp config/kernel.config src/$(LINUX_DIR)/.config
@@ -58,7 +58,16 @@ busyboxmenuconfig: | stamp/fetch-busybox
 	cd src/$(BUSYBOX_DIR) && make ARCH=x86 CROSS_COMPILE=i486-linux-musl- menuconfig
 	cp src/$(BUSYBOX_DIR)/.config config/busybox.config
 
-build-syslinux: stamp/fetch-syslinux
+build-syslinux: out/syslinux/usr/bin/syslinux
+patch-syslinux: stamp/patched-syslinux
+
+stamp/patched-syslinux: stamp/fetch-syslinux patches/syslinux/*.patch
+	cd src/syslinux && for patch in ../../patches/syslinux/*.patch; do\
+		patch -p1 < $$patch; \
+	done
+	touch $@
+
+out/syslinux/usr/bin/syslinux: | stamp/fetch-syslinux out patch-syslinux
 	cd src/syslinux && make bios PYTHON=python3 
 	cd src/syslinux && make bios install INSTALLROOT=`pwd`/../../out/syslinux PYTHON=python3
 

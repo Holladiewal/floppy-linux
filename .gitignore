@@ -4,3 +4,8 @@ stamp
 out
 floppy_linux.img
 revisions
+
+# Exclude all syslinux patches, these are fetched from the debian package during setup
+patches/syslinux/*
+# Explicitly include our own patch, as it is not part of the debian package
+!patches/syslinux/0030-fix-e88.patch
