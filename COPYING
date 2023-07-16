@@ -4,9 +4,14 @@ The Linux kernel is licensed under the GPLv2 and is available from https://kerne
 
 BusyBox is used as the userland, and is available from https://www.busybox.net/
 
+Tiny Floppy Bootloader is licensed under GPLv3 and is available from https://github.com/guineawheek/tiny-floppy-bootloader
+
 Original code (such as the Makefile, scripts, and such) are copyright Restless Systems LLC
 
+Changes added by Holladiewal <holladiewal@whydoyouhate.me> are copyrighted by them.
+
 Copyright (c) 2023 Restless Systems LLC <ncommander@restless.systems>
+              2023 Holladiewal <holladiewal@whydoyouhate.me>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
