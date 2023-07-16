@@ -79,40 +79,53 @@ out/bzImage: config/kernel.config | stamp/fetch-kernel  build-busybox build-init
 	cd src/$(LINUX_DIR) && $(MAKE) $(KERNEL_SETTINGS)
 	cp src/$(LINUX_DIR)/arch/x86/boot/bzImage out/bzImage
 
-build-busybox: stamp/fetch-busybox
-	-mkdir -p out/initramfs
+build-mini-busybox: out/initramfs/bin/busybox
+
+build-busybox: out/busybox/bin/busybox
+
+BUSYBOX_SETTINGS = $(KERNEL_SETTINGS)
+
+out/busybox/bin/busybox: config/busybox.config | stamp/fetch-busybox out
 	cp config/busybox.config src/$(BUSYBOX_DIR)/.config
-	cd src/$(BUSYBOX_DIR) && $(MAKE) -j4 ARCH=x86 CROSS_COMPILE=i486-linux-musl-
-	cd src/$(BUSYBOX_DIR) && $(MAKE) -j4 ARCH=x86 CROSS_COMPILE=i486-linux-musl- install
-	cp -rv src/$(BUSYBOX_DIR)/_install/* out/initramfs
+	$(MAKE) -C src/$(BUSYBOX_DIR) $(BUSYBOX_SETTINGS)
+	$(MAKE) -C src/$(BUSYBOX_DIR) $(BUSYBOX_SETTINGS) CONFIG_PREFIX=../../out/busybox install
 
-build-initramfs:
-	-rm -rf out/initramfs/dev
-	-mkdir -p out/initramfs/dev
+out/initramfs/bin/busybox: config/busybox.mini.config | stamp/fetch-busybox out out/initramfs
+	cp config/busybox.mini.config src/$(BUSYBOX_DIR)/.config
+	$(MAKE) -C src/$(BUSYBOX_DIR) ARCH=x86 CROSS_COMPILE=i486-linux-musl- AR=i486-linux-musl-gcc-ar NM=i486-linux-musl-gcc-nm
+	$(MAKE) -C src/$(BUSYBOX_DIR) ARCH=x86 CROSS_COMPILE=i486-linux-musl- AR=i486-linux-musl-gcc-ar NM=i486-linux-musl-gcc-nm CONFIG_PREFIX=../../out/initramfs install
 
-	-rm -rf out/initramfs/sys
-	-mkdir -p out/initramfs/sys
+out/initramfs/etc/init.d/%: etc/% | out/initramfs/etc/init.d
+	cp $< $@
+	chmod +x $@
 
-	-rm -rf out/initramfs/proc
-	-mkdir -p out/initramfs/proc
+out/initramfs/dev: | out/initramfs
+	cd out/initramfs && mkdir dev
 
-	mkdir -p out/initramfs/etc/init.d/
-	cp etc/rc out/initramfs/etc/init.d/rc
-	chmod +x out/initramfs/etc/init.d/rc
+build-initramfs: $(ROOT_DIR)/out/initramfs.cpio
 
-	cp etc/inittab out/initramfs/etc/inittab
-	chmod +x out/initramfs/etc/inittab
+$(ROOT_DIR)/out/initramfs.cpio: | out/initramfs  out/initramfs/dev
+	cd out/initramfs && find . | cpio -o -H newc > $(ROOT_DIR)/out/initramfs.cpio # | xz --check=crc32 -1e
 
-	cd out/initramfs && \
-	find . | cpio -o -H newc | bzip2 -9 > $(ROOT_DIR)/out/initramfs.cpio.bz2
-
-build-floppy: build-kernel build-initramfs build-syslinux
+build-floppy: out/bzImage $(ROOT_DIR)/out/initramfs.cpio build-syslinux | out
 	dd if=/dev/zero of=./floppy_linux.img bs=1k count=1440
 	mkdosfs floppy_linux.img
 	out/syslinux/usr/bin/syslinux --install floppy_linux.img
 	mcopy -i floppy_linux.img config/syslinux.cfg ::
 	mcopy -i floppy_linux.img out/bzImage  ::
-	mcopy -i floppy_linux.img out/initramfs.cpio.bz2  ::rootfs.ram
+	mcopy -i floppy_linux.img out/initramfs.cpio.xz  ::rootfs.ram
+
+build-kernel-modules: stamp/fetch-kernel config/kernel.config
+	$(MAKE) -C src/$(LINUX_DIR) INSTALL_MOD_PATH=../../out/kmodules/ ARCH=x86 CROSS_COMPILE=i486-linux-musl- modules
+	$(MAKE) -C src/$(LINUX_DIR) INSTALL_MOD_PATH=../../out/kmodules/ ARCH=x86 CROSS_COMPILE=i486-linux-musl- modules_install
+
+build-aux-floppy: out/busybox/bin/busybox build-kernel-modules
+	cd out/busybox && mksquashfs * ../kmodules/* ../aux_bb.img -root-owned -comp xz -noappend -nopad -no-xattrs -no-exports
+	@if [ `stat -c %s aux_bb.img` -gt 1474560 ]; then \
+		echo "Auxiliary Image exceeds 1.44MB. Cannot fit on floppy"; \
+		exit 1;\
+	fi
+	truncate -s 1440K out/aux_bb.img
 
 clean:
 	echo "Making a fresh build ..."
