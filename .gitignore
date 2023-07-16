@@ -1,11 +1,15 @@
 dist
-src
 stamp
 out
-floppy_linux.img
+*.img
 revisions
-
+temp
 # Exclude all syslinux patches, these are fetched from the debian package during setup
 patches/syslinux/*
 # Explicitly include our own patch, as it is not part of the debian package
 !patches/syslinux/0030-fix-e88.patch
+
+# Exclude all src subdirs, as they are created from fetched tarballs
+src/*
+# Explicitly include our sources that are not fetched during setup
+!src/flmount
