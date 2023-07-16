@@ -3,9 +3,6 @@ INITRAMFS_BASE=$(ROOT_DIR)/out/initramfs
 
 .SUFFIXES:
 
-UBUNTU_SYSLINUX_ORIG=http://archive.ubuntu.com/ubuntu/pool/main/s/syslinux/syslinux_6.04~git20190206.bf6db5b4+dfsg1.orig.tar.xz
-UBUNTU_SYSLINUX_PKG=http://archive.ubuntu.com/ubuntu/pool/main/s/syslinux/syslinux_6.04~git20190206.bf6db5b4+dfsg1-3ubuntu1.debian.tar.xz
-
 LINUX_DIR=linux-6.4
 LINUX_TARBALL=$(LINUX_DIR).tar.xz
 LINUX_KERNEL_URL=https://cdn.kernel.org/pub/linux/kernel/v6.x/$(LINUX_TARBALL)
@@ -14,7 +11,7 @@ BUSYBOX_DIR=busybox-1.36.1
 BUSYBOX_TARBALL=$(BUSYBOX_DIR).tar.bz2
 BUSYBOX_URL=https://busybox.net/downloads/$(BUSYBOX_TARBALL)
 
-subdirs = dist src out stamp out/initramfs out/initramfs/etc out/initramfs/etc/init.d out/initramfs/sys temp/syslinux
+subdirs = dist src out stamp out/initramfs out/initramfs/etc out/initramfs/etc/init.d out/initramfs/sys
 
 .PHONY: all clean build-busybox 
 
@@ -45,16 +42,6 @@ stamp/fetch-tiny-loader: | src stamp
 	done
 	touch $@
 
-stamp/fetch-syslinux: | dist src stamp temp/syslinux
-	cd dist && wget $(UBUNTU_SYSLINUX_ORIG) -O syslinux_orig.tar.xz
-	cd dist && wget $(UBUNTU_SYSLINUX_PKG) -O syslinux_pkg.tar.xz
-	cd src && tar -xvf ../dist/syslinux_orig.tar.xz
-	cd src && mv syslinux-6.04~git20190206.bf6db5b4 syslinux
-	cd temp/syslinux && tar -xvf ../../dist/syslinux_pkg.tar.xz
-	cp temp/syslinux/debian/patches/*.patch patches/syslinux
-	rm -r temp/syslinux
-	touch $@
-
 kernelmenuconfig: | stamp/fetch-kernel
 	cp config/kernel.config src/$(LINUX_DIR)/.config
 	cd src/$(LINUX_DIR) && make ARCH=x86 CROSS_COMPILE=i486-linux-musl- menuconfig
@@ -64,19 +51,6 @@ busyboxmenuconfig: | stamp/fetch-busybox
 	cp config/busybox.config src/$(BUSYBOX_DIR)/.config
 	cd src/$(BUSYBOX_DIR) && make ARCH=x86 CROSS_COMPILE=i486-linux-musl- menuconfig
 	cp src/$(BUSYBOX_DIR)/.config config/busybox.config
-
-build-syslinux: out/syslinux/usr/bin/syslinux
-patch-syslinux: stamp/patched-syslinux
-
-stamp/patched-syslinux: stamp/fetch-syslinux patches/syslinux/*.patch
-	cd src/syslinux && for patch in ../../patches/syslinux/*.patch; do\
-		patch -p1 < $$patch; \
-	done
-	touch $@
-
-out/syslinux/usr/bin/syslinux: | stamp/fetch-syslinux out patch-syslinux
-	cd src/syslinux && make bios PYTHON=python3 
-	cd src/syslinux && make bios install INSTALLROOT=`pwd`/../../out/syslinux PYTHON=python3
 
 build-kernel: out/bzImage
 
@@ -117,15 +91,7 @@ $(ROOT_DIR)/out/initramfs.cpio: | out/initramfs  out/initramfs/dev
 out/initramfs/bin/flmount: src/flmount/mount.c
 	i486-linux-musl-gcc -static -o $@ $<
 
-build-floppy: out/bzImage $(ROOT_DIR)/out/initramfs.cpio build-syslinux | out
-	dd if=/dev/zero of=./floppy_linux.img bs=1k count=1440
-	mkdosfs floppy_linux.img
-	out/syslinux/usr/bin/syslinux --install floppy_linux.img
-	mcopy -i floppy_linux.img config/syslinux.cfg ::
-	mcopy -i floppy_linux.img out/bzImage  ::
-	mcopy -i floppy_linux.img out/initramfs.cpio.xz  ::rootfs.ram
-
-build-tiny-floppy: stamp/fetch-tiny-loader | out
+build-boot-floppy: stamp/fetch-tiny-loader | out
 	@cd src/tiny-floppy-bootloader && OUTPUT="../../out/tinydisk.img" KERN="../../out/bzImage" ./build.sh
 
 build-kernel-modules: stamp/fetch-kernel config/kernel.config
