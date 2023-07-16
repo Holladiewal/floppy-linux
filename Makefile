@@ -1,6 +1,8 @@
 ROOT_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 INITRAMFS_BASE=$(ROOT_DIR)/out/initramfs
 
+.SUFFIXES:
+
 UBUNTU_SYSLINUX_ORIG=http://archive.ubuntu.com/ubuntu/pool/main/s/syslinux/syslinux_6.04~git20190206.bf6db5b4+dfsg1.orig.tar.xz
 UBUNTU_SYSLINUX_PKG=http://archive.ubuntu.com/ubuntu/pool/main/s/syslinux/syslinux_6.04~git20190206.bf6db5b4+dfsg1-3ubuntu1.debian.tar.xz
 
@@ -12,7 +14,9 @@ BUSYBOX_DIR=busybox-1.36.1
 BUSYBOX_TARBALL=$(BUSYBOX_DIR).tar.bz2
 BUSYBOX_URL=https://busybox.net/downloads/$(BUSYBOX_TARBALL)
 
-.PHONY: all clean
+subdirs = dist src out stamp out/initramfs out/initramfs/etc out/initramfs/etc/init.d out/initramfs/sys temp/syslinux
+
+.PHONY: all clean build-busybox 
 
 all: stamp/fetch-kernel \
 	 stamp/fetch-busybox
@@ -20,20 +24,21 @@ all: stamp/fetch-kernel \
 	-mkdir -p stamp
 	echo "Starting build ..."
 
-stamp/fetch-kernel:
-	-mkdir -p dist src stamp
+$(subdirs): 
+	-mkdir -p $@
+
+stamp/fetch-kernel dist/$(LINUX_TARBALL) src/$(LINUX_DIR): | dist src stamp
 	cd dist && wget $(LINUX_KERNEL_URL)
 	cd src && tar -xvf ../dist/$(LINUX_TARBALL)
 	touch stamp/fetch-kernel		
 
-stamp/fetch-busybox:
-	-mkdir -p dist src stamp
+stamp/fetch-busybox dist/$(BUSYBOX_TARBALL) src/$(BUSYBOX_DIR): | dist src stamp
 	cd dist && wget $(BUSYBOX_URL)
 	cd src && tar -xvf ../dist/$(BUSYBOX_TARBALL)
 	touch stamp/fetch-busybox		
 
-stamp/fetch-syslinux:
-	-mkdir -p dist src stamp
+
+stamp/fetch-syslinux: | dist src stamp temp/syslinux
 	cd dist && wget $(UBUNTU_SYSLINUX_ORIG) -O syslinux_orig.tar.xz
 	cd dist && wget $(UBUNTU_SYSLINUX_PKG) -O syslinux_pkg.tar.xz
 	cd src && tar -xvf ../dist/syslinux_orig.tar.xz
@@ -43,12 +48,12 @@ stamp/fetch-syslinux:
 	cd src/syslinux && patch -p1 < ../../patches/0030-fix-e88.patch
 	touch stamp/fetch-syslinux		
 
-kernelmenuconfig: stamp/fetch-kernel
+kernelmenuconfig: | stamp/fetch-kernel
 	cp config/kernel.config src/$(LINUX_DIR)/.config
 	cd src/$(LINUX_DIR) && make ARCH=x86 CROSS_COMPILE=i486-linux-musl- menuconfig
 	cp src/$(LINUX_DIR)/.config config/kernel.config
 
-busyboxmenuconfig: stamp/fetch-busybox
+busyboxmenuconfig: | stamp/fetch-busybox
 	cp config/busybox.config src/$(BUSYBOX_DIR)/.config
 	cd src/$(BUSYBOX_DIR) && make ARCH=x86 CROSS_COMPILE=i486-linux-musl- menuconfig
 	cp src/$(BUSYBOX_DIR)/.config config/busybox.config
@@ -57,10 +62,12 @@ build-syslinux: stamp/fetch-syslinux
 	cd src/syslinux && make bios PYTHON=python3 
 	cd src/syslinux && make bios install INSTALLROOT=`pwd`/../../out/syslinux PYTHON=python3
 
-build-kernel: stamp/fetch-kernel build-busybox build-initramfs
-	-mkdir out
+build-kernel: out/bzImage
+
+KERNEL_SETTINGS = ARCH=x86 CROSS_COMPILE=i486-linux-musl- AR=i486-linux-musl-gcc-ar NM=i486-linux-musl-gcc-nm
+out/bzImage: config/kernel.config | stamp/fetch-kernel  build-busybox build-initramfs out
 	cp config/kernel.config src/$(LINUX_DIR)/.config
-	cd src/$(LINUX_DIR) && $(MAKE) -j4 ARCH=x86 CROSS_COMPILE=i486-linux-musl-
+	cd src/$(LINUX_DIR) && $(MAKE) $(KERNEL_SETTINGS)
 	cp src/$(LINUX_DIR)/arch/x86/boot/bzImage out/bzImage
 
 build-busybox: stamp/fetch-busybox
