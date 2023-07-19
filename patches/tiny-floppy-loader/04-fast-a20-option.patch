@@ -1,0 +1,56 @@
+diff --git a/bflop.asm b/bflop.asm
+index 1067f98..53d7e3b 100644
+--- a/bflop.asm
++++ b/bflop.asm
+@@ -21,1 +20,7 @@
++ 
++; Uses FASTA20 instead of 8042-based switching. 
++; Reduces the size of the code if the system supports IOPort 0x92 for A20.
++; Not all do, and some use it for something completly different
++;%define FASTA20 
++
+ %include "config.inc"
+ 
+@@ -31,11 +37,24 @@ org	0x7c00
+ 	mov	ss, ax
+ 	mov	sp, 0x7c00			; setup stack 
+ 
+-    ; now get into protected move (32bit) as kernel is large and has to be loaded high
+-    mov ax, 0x2401 ; A20 line enable via BIOS
+-    int 0x15
+-    jc err
+-
++    ; now get into protected mode (32bit) as kernel is large and has to be loaded high
++%ifdef FASTA20
++    ; The IOPORT based FastA20 method 
++    in al, 0x92
++    or al, 2
++    out 0x92, al
++%else
++    ; Ask the keyboard controller (8042) to enable the A20 Gate. 
++    ; this is the most compatible one, but also the slowest.
++    ; Since this gate is pretty much never switched again, we do not care about speed
++    call empty_8042
++    mov al, 0xd1
++    out 0x64, al
++    call empty_8042
++    mov al, 0xdf
++    out 0x60, al
++    call empty_8042
++%endif
+ 
+     lgdt [gdt_desc] ; load global descriptor table
+     mov eax, cr0
+
+@@ -233,6 +233,12 @@ print:
+     int 0x10
+     jmp print
+ print.end:
++
++%ifndef FASTA20
++empty_8042:
++    in al, 0x64
++    test al, 2
++    jnz empty_8042
+     ret
+ %endif

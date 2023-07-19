@@ -1,0 +1,31 @@
+diff --git a/bflop.asm b/bflop.asm
+index 1067f98..d3e397a 100644
+--- a/bflop.asm
++++ b/bflop.asm
+@@ -181,18 +200,19 @@ highmove_addr dd 0x100000
+ ; count = 127*512  fixed, doesn't if matter we copy junk at end
+ ; don't think we can use rep movsb here as it wont use EDI/ESI in unreal mode
+ highmove:
++    push es
++    mov ecx, ds
++    mov es, ecx
+     mov esi, 0x20000
+     mov edi, [highmove_addr]
+-    mov edx, 512*127
+-    mov ecx, 0 ; pointer
+-.loop:
+-    mov eax, [ds:esi]
+-    mov [ds:edi], eax
+-    add esi, 4
+-    add edi, 4
+-    sub edx, 4
+-    jnz highmove.loop
++    ; movsd moves 4 bytes at a time,
++    ; so we reduce ecx (counter for rep) accordingly
++    mov ecx, 128*127 
++    a32 rep movsd ; a32 forces use of EDI and ESI in 16-bit mode
++    
+     mov [highmove_addr], edi
++    mov ecx, 0 ; pointer
++    pop es
+     ret

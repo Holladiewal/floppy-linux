@@ -1,0 +1,70 @@
+diff --git a/bflop.asm b/bflop.asm
+index 1067f98..d3e397a 100644
+--- a/bflop.asm
++++ b/bflop.asm
+@@ -20,1 +20,1 @@
+-%define DEBUG
++;%define DEBUG ; Enables an undescriptive Error message
+@@ -156,9 +175,9 @@ loader:
+     push edx
+     call flopread
+     call highmove
++    mov al, 'B'
++    call print_char
+ 
+-    mov si, pstr
+-    call print
+     pop edx
+     sub edx, 127*512
+
+@@ -205,31 +224,40 @@
++
+ errK:
+ %ifdef DEBUG
+-    mov si, errStrK
++    mov si, errStr
+     call print
+ %endif
+     jmp $
+ 
+ err_read:
+ %ifdef DEBUG
+-    mov si, errStrRead
++    mov si, errStr
+     call print
+ %endif
+     jmp $
+ 
+-errStr db 'a20err!!',0
+-errStrRead db 'read err!!',0
+-errStrK db 'krnlerr!!',0
++%ifdef DEBUG
++errStr db 'err!',0
++;errStrRead db 'err!',0
++;errStrK db 'err!',0
+ pstr db 'B',0
+ 
+-
+-%ifdef DEBUG
+ ; si = source str
+ print:
+     lodsb
+     and al, al
+     jz print.end
++    call print_char
++    jmp print
++print.end:
++    ret
++%endif
++
++crlf:
++    mov al, 0x0A
++    call print_char
++    mov al, 0x0D
++print_char:
+     mov ah, 0xe
+     mov bx, 7
+     int 0x10
+-    jmp print
+-print.end:
++    ret

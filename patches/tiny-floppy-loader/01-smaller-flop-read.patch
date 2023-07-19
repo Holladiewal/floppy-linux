@@ -1,0 +1,63 @@
+diff --git a/bflop.asm b/bflop.asm
+index 1067f98..d3e397a 100644
+--- a/bflop.asm
++++ b/bflop.asm
+@@ -256,7 +291,6 @@ flopread:
+ ; HPC = 2
+ ; SPT = 18
+     ; 
+-    ;
+     ; convert sectors to CHS
+     ; adapted from kolibrios 
+     ; (https://github.com/Harmon758/kolibrios/blob/master/kernel/trunk/bootloader/boot_fat12.asm)
+@@ -264,37 +298,27 @@ flopread:
+     ; pre.track number = (flSect/ sectors_per_track)
+     ; head number = pre.track number % number of heads
+     ; track number = pre.track number / number of heads
+-    push bx
+     mov ax, word [flSect]
+-    mov bx, nSectorsPerTrackDef
++    mov cl, nSectorsPerTrackDef
++    div cl ; al = track number // ah = sector in track
++    inc ah ; 
+     xor dx, dx
+-    div bx
+-    inc dx ; 
+-    mov cl, dl  ; cl -- sector number
+-    mov bx, 0x2 ; num heads fixed to 2
+-    xor dx, dx
+-    div  bx
+-    ; !!!!!!! ax = track number, dx = head number
+-    mov ch, al          ; ch=track number
+-    xchg dh, dl         ; dh=head number
+-    pop bx
+-
+-
++    shr al, 1; num heads fixed to 2
++    adc dh, dh
++    ; !!!!!!! al = track number, dh = head number
++    mov cl, ah  ; cl -- sector number
++    mov ch, al  ; ch=track number
+ 
+     ; so cx has an absolutely Cursed layout
+     ; (see http://www.techhelpmanual.com/188-int_13h_02h__read_sectors.html)
+     ; so we need to do some Funky Things 
+     ; (thank you ibm i hate this)
+-    ; (this approach does not suppoprt more than 255 cylinders)
+-    mov al, cl ; temp move sector number to al
+-    and al, 0x3f ; lop off the top 2 bits
+-    and cl, 0xc0 ; lop off the bottom 6 bits 
+-    or cl, al ; add the sector number back in
+-
++    ; (this approach does not support more than 255 cylinders)
+ 
+-    xor dl, dl ; read from first floppy -- this may not be necessary
+-    mov al, 0x01 ; read 1 sector
+-    mov ah, 0x02 ; 
++    ; clear the high bits for the cylinder count. 
++    ; Should never need more than 255 cylinders (tracks per side) for floppies
++    and cl, 0x3f
++    mov ax, 0x0201 ; read a single sector (ah is subcommand, al the sector count)
+ 
+     push si
+     mov si, 20 ; set floppy retry counter
