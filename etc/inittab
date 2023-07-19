@@ -1,4 +1,6 @@
 ::sysinit:/etc/init.d/rc
-::askfirst:/bin/sh
+tty0::askfirst:/bin/cttyhack /bin/sh
 ::restart:/sbin/init
 ::ctrlaltdel:/sbin/reboot
+#tty0::respawn:-/bin/sh
+ttyS0::respawn:-/bin/sh
