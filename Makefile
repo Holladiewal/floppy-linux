@@ -54,7 +54,7 @@ busyboxmenuconfig: | stamp/fetch-busybox
 
 build-kernel: out/bzImage
 
-KERNEL_SETTINGS = ARCH=x86 CROSS_COMPILE=i486-linux-musl- AR=i486-linux-musl-gcc-ar NM=i486-linux-musl-gcc-nm
+KERNEL_SETTINGS = ARCH=x86 CROSS_COMPILE=i486-linux-musl-
 out/bzImage: config/kernel.config | stamp/fetch-kernel  build-busybox build-initramfs out
 	cp config/kernel.config src/$(LINUX_DIR)/.config
 	cd src/$(LINUX_DIR) && $(MAKE) $(KERNEL_SETTINGS)
@@ -73,10 +73,10 @@ out/busybox/bin/busybox: config/busybox.config | stamp/fetch-busybox out
 
 out/initramfs/bin/busybox: config/busybox.mini.config | stamp/fetch-busybox out out/initramfs
 	cp config/busybox.mini.config src/$(BUSYBOX_DIR)/.config
-	$(MAKE) -C src/$(BUSYBOX_DIR) ARCH=x86 CROSS_COMPILE=i486-linux-musl- AR=i486-linux-musl-gcc-ar NM=i486-linux-musl-gcc-nm
-	$(MAKE) -C src/$(BUSYBOX_DIR) ARCH=x86 CROSS_COMPILE=i486-linux-musl- AR=i486-linux-musl-gcc-ar NM=i486-linux-musl-gcc-nm CONFIG_PREFIX=../../out/initramfs install
+	$(MAKE) -C src/$(BUSYBOX_DIR) $(BUSYBOX_SETTINGS)
+	$(MAKE) -C src/$(BUSYBOX_DIR) $(BUSYBOX_SETTINGS) CONFIG_PREFIX=../../out/initramfs install
 
-out/initramfs/etc/init.d/%: etc/% | out/initramfs/etc/init.d
+out/busybox/etc/%: etc/% | out/busybox/etc/
 	cp $< $@
 	chmod +x $@
 
@@ -89,22 +89,23 @@ $(ROOT_DIR)/out/initramfs.cpio: | out/initramfs  out/initramfs/dev
 	cd out/initramfs && find . | cpio -o -H newc > $(ROOT_DIR)/out/initramfs.cpio # | xz --check=crc32 -1e
 
 out/initramfs/bin/flmount: src/flmount/mount.c
-	i486-linux-musl-gcc -static -o $@ $<
+	i486-linux-musl-gcc -static -DDEBUG -o $@ $<
 
-build-boot-floppy: stamp/fetch-tiny-loader | out
-	@cd src/tiny-floppy-bootloader && OUTPUT="../../out/tinydisk.img" KERN="../../out/bzImage" ./build.sh
+boot-floppy: stamp/fetch-tiny-loader out/initramfs/bin/flmount | out
+	@cd src/tiny-floppy-bootloader && OUTPUT="../../out/tinydisk.img" KERN="../../out/bzImage" RD="../../out/initramfs.cpio.xz" ./build.sh
 
 build-kernel-modules: stamp/fetch-kernel config/kernel.config
 	$(MAKE) -C src/$(LINUX_DIR) INSTALL_MOD_PATH=../../out/kmodules/ ARCH=x86 CROSS_COMPILE=i486-linux-musl- modules
 	$(MAKE) -C src/$(LINUX_DIR) INSTALL_MOD_PATH=../../out/kmodules/ ARCH=x86 CROSS_COMPILE=i486-linux-musl- modules_install
 
-build-aux-floppy: out/busybox/bin/busybox build-kernel-modules
-	cd out/busybox && mksquashfs * ../kmodules/* ../aux_bb.img -root-owned -comp xz -noappend -nopad -no-xattrs -no-exports
+aux-floppy: out/busybox/bin/busybox build-kernel-modules out/busybox/etc/inittab out/busybox/etc/init.d/rc
+	@-rm aux_bb.img
+	cd out/busybox && mksquashfs * ../kmodules/* ../../aux_bb.img -root-owned -comp xz -noappend -nopad -no-xattrs -no-exports
 	@if [ `stat -c %s aux_bb.img` -gt 1474560 ]; then \
 		echo "Auxiliary Image exceeds 1.44MB. Cannot fit on floppy"; \
 		exit 1;\
 	fi
-	truncate -s 1440K out/aux_bb.img
+	truncate -s 1440K aux_bb.img
 
 clean:
 	echo "Making a fresh build ..."
